@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador de Investimento em Bitcoin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js"></script>
+    <style>
+        body {
+            background-color: #f3f4f6;
+            font-family: 'Arial', sans-serif;
+        }
+        #result {
+            white-space: pre-wrap;
+            font-family: monospace;
+            background-color: white;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center">
+    <div class="max-w-md w-full bg-white p-6 rounded-lg shadow-lg">
+        <h1 class="text-2xl font-bold text-center mb-6">Simulador de Investimento em Bitcoin</h1>
+        <form id="investment-form" class="space-y-4">
+            <div>
+                <label for="aporte" class="block text-sm font-medium text-gray-700">Aporte diário (R$):</label>
+                <input type="number" id="aporte" name="aporte" step="0.01" min="0.01" placeholder="Ex: 33.33" required
+                       class="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div>
+                <label for="anos" class="block text-sm font-medium text-gray-700">Anos para simular:</label>
+                <input type="number" id="anos" name="anos" min="1" max="10" placeholder="Ex: 1, 2, 5, 10" required
+                       class="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            <button type="submit" class="w-full bg-blue-500 text-white p-2 rounded-md hover:bg-blue-600">Calcular</button>
+        </form>
+        <div id="result" class="mt-6 hidden"></div>
+    </div>
+
+    <script>
+        async function main() {
+            let pyodide = await loadPyodide();
+            await pyodide.loadPackage(['pandas', 'yfinance']);
+
+            // Código Python a ser executado
+            const pythonCode = `
+import yfinance as yf
+import pandas as pd
+from datetime import datetime, timedelta
+import js
+
+def simulacao_investimento(aporte_diario, anos):
+    try:
+        end_date = datetime.now().date()
+        start_date = end_date - timedelta(days=anos * 365)
+
+        btc_usd = yf.download('BTC-USD', start=start_date, end=end_date, auto_adjust=False)['Close']
+        usd_brl = yf.download('USDBRL=X', start=start_date, end=end_date, auto_adjust=False)['Close']
+
+        if btc_usd.empty or usd_brl.empty:
+            return "Erro: Dados históricos não foram baixados corretamente."
+
+        if isinstance(btc_usd, pd.DataFrame):
+            btc_usd = btc_usd.iloc[:, 0]
+        if isinstance(usd_brl, pd.DataFrame):
+            usd_brl = usd_brl.iloc[:, 0]
+
+        btc_usd.name = None
+        usd_brl.name = None
+
+        btc_usd = btc_usd.asfreq('D', method='ffill')
+        usd_brl = usd_brl.reindex(btc_usd.index, method='ffill').ffill().bfill()
+
+        btc_brl = btc_usd * usd_brl
+
+        if btc_brl.empty:
+            return "Erro: Não foi possível calcular os preços do BTC em BRL."
+        if btc_brl.isna().all():
+            return "Erro: Todos os preços do BTC em BRL são NaN."
+
+        total_btc = 0.0
+        total_investido = 0.0
+        valid_days = 0
+        for date, preco in btc_brl.items():
+            if pd.notna(preco) and preco > 0:
+                try:
+                    btc_comprado = aporte_diario / preco
+                    total_btc += float(btc_comprado)
+                    total_investido += aporte_diario
+                    valid_days += 1
+                except (TypeError, ValueError):
+                    continue
+
+        if total_investido == 0:
+            return f"Erro: Nenhum dado válido para simulação. Dias válidos processados: {valid_days}"
+
+        try:
+            preco_atual = btc_brl[btc_brl.notna()].iloc[-1]
+        except IndexError:
+            return "Erro: Não há preço válido disponível para o último dia."
+
+        valor_final = total_btc * preco_atual
+        lucro = valor_final - total_investido
+        rendimento_pct = (lucro / total_investido) * 100 if total_investido > 0 else 0
+
+        result = (f"Simulação para {anos} ano(s) atrás até {end_date}:\\n"
+                  f"Dias investidos: {valid_days}\\n"
+                  f"Total investido: R$ {total_investido:.2f}\\n"
+                  f"Lucro/Prejuízo: R$ {lucro:.2f}\\n"
+                  f"Total investido + Lucro: R$ {valor_final:.2f}\\n"
+                  f"Percentual de lucro total: {rendimento_pct:.2f}%\\n"
+                  f"Quantidade de BTC adquirido: {total_btc:.8f} BTC")
+        return result
+    except Exception as e:
+        return f"Erro na simulação: {str(e)}"
+
+# Função para chamar a simulação
+result = simulacao_investimento(float(js.document.getElementById('aporte').value), 
+                               int(js.document.getElementById('anos').value))
+`;
+
+            // Configurar o formulário
+            const form = document.getElementById('investment-form');
+            const resultDiv = document.getElementById('result');
+
+            form.addEventListener('submit', async (event) => {
+                event.preventDefault();
+                resultDiv.classList.remove('hidden');
+                resultDiv.textContent = 'Calculando...';
+
+                try {
+                    const aporte = document.getElementById('aporte').value;
+                    const anos = document.getElementById('anos').value;
+                    
+                    // Executar o código Python
+                    const output = await pyodide.runPythonAsync(pythonCode);
+                    resultDiv.textContent = output || 'Erro: Nenhum resultado retornado.';
+                } catch (err) {
+                    resultDiv.textContent = `Erro: ${err.message}`;
+                }
+            });
+        }
+
+        main();
+    </script>
+</body>
+</html>
