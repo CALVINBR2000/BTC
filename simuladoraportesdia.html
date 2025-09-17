@@ -94,7 +94,7 @@
 
     <script>
         async function fetchBitcoinPrices(startDate, endDate) {
-            const apiKey = '<SUA_CHAVE_API_AQUI>'; // Substitua pela sua chave de API da CoinGecko
+            const apiKey = 'CG-bAYkDA449m3yzuaUF6e3Za7S'; // Substitua pela sua chave de API da CoinGecko
             const url = `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart/range?vs_currency=usd&from=${Math.floor(startDate.getTime() / 1000)}&to=${Math.floor(endDate.getTime() / 1000)}&x_cg_api_key=${apiKey}`;
             const response = await fetch(url);
             if (!response.ok) {
