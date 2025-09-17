@@ -94,8 +94,12 @@
 
     <script>
         async function fetchBitcoinPrices(startDate, endDate) {
-            const url = `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart/range?vs_currency=usd&from=${Math.floor(startDate.getTime() / 1000)}&to=${Math.floor(endDate.getTime() / 1000)}`;
+            const apiKey = '<SUA_CHAVE_API_AQUI>'; // Substitua pela sua chave de API da CoinGecko
+            const url = `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart/range?vs_currency=usd&from=${Math.floor(startDate.getTime() / 1000)}&to=${Math.floor(endDate.getTime() / 1000)}&x_cg_api_key=${apiKey}`;
             const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`Erro na API CoinGecko: ${response.status} ${response.statusText}`);
+            }
             const data = await response.json();
             return data.prices.map(([timestamp, price]) => ({
                 date: new Date(timestamp).toISOString().split('T')[0],
