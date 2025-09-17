@@ -93,44 +93,44 @@
     </div>
 
     <script>
+        async function fetchBitcoinPrices(startDate, endDate) {
+            const url = `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart/range?vs_currency=usd&from=${Math.floor(startDate.getTime() / 1000)}&to=${Math.floor(endDate.getTime() / 1000)}`;
+            const response = await fetch(url);
+            const data = await response.json();
+            return data.prices.map(([timestamp, price]) => ({
+                date: new Date(timestamp).toISOString().split('T')[0],
+                price
+            }));
+        }
+
         async function main() {
             let pyodide = await loadPyodide();
             await pyodide.loadPackage('pandas');
-            await pyodide.loadPackage('micropip');
-            await pyodide.runPythonAsync(`
-                import micropip
-                await micropip.install('yfinance')
-            `);
 
             const pythonCode = `
-import yfinance as yf
 import pandas as pd
 from datetime import datetime, timedelta
 import js
+import json
 
-def simulacao_investimento(aporte_diario, anos):
+def simulacao_investimento(aporte_diario, anos, btc_prices_json):
     try:
         end_date = datetime.now().date()
         start_date = end_date - timedelta(days=anos * 365)
 
-        btc_usd = yf.download('BTC-USD', start=start_date, end=end_date, auto_adjust=False)['Close']
-        usd_brl = yf.download('USDBRL=X', start=start_date, end=end_date, auto_adjust=False)['Close']
+        # Carregar preços do Bitcoin em USD
+        btc_prices = json.loads(btc_prices_json)
+        btc_usd = pd.Series(
+            {item['date']: item['price'] for item in btc_prices},
+            dtype=float
+        )
 
-        if btc_usd.empty or usd_brl.empty:
-            return "Erro: Dados históricos não foram baixados corretamente."
-
-        if isinstance(btc_usd, pd.DataFrame):
-            btc_usd = btc_usd.iloc[:, 0]
-        if isinstance(usd_brl, pd.DataFrame):
-            usd_brl = usd_brl.iloc[:, 0]
-
-        btc_usd.name = None
-        usd_brl.name = None
-
+        # Garantir frequência diária e preencher valores faltantes
         btc_usd = btc_usd.asfreq('D', method='ffill')
-        usd_brl = usd_brl.reindex(btc_usd.index, method='ffill').ffill().bfill()
 
-        btc_brl = btc_usd * usd_brl
+        # Taxa USD/BRL fixa (substitua por uma API de taxas históricas se disponível)
+        usd_brl_rate = 5.5  # Média aproximada para o período
+        btc_brl = btc_usd * usd_brl_rate
 
         if btc_brl.empty:
             return "Erro: Não foi possível calcular os preços do BTC em BRL."
@@ -172,10 +172,6 @@ def simulacao_investimento(aporte_diario, anos):
         return result
     except Exception as e:
         return f"Erro na simulação: {str(e)}"
-
-# Função para chamar a simulação
-result = simulacao_investimento(float(js.document.getElementById('aporte').value), 
-                               int(js.document.getElementById('anos').value))
 `;
 
             const form = document.getElementById('investment-form');
@@ -187,10 +183,19 @@ result = simulacao_investimento(float(js.document.getElementById('aporte').value
                 resultDiv.textContent = 'Calculando...';
 
                 try {
-                    const aporte = document.getElementById('aporte').value;
-                    const anos = document.getElementById('anos').value;
-                    
-                    const output = await pyodide.runPythonAsync(pythonCode);
+                    const aporte = parseFloat(document.getElementById('aporte').value);
+                    const anos = parseInt(document.getElementById('anos').value);
+                    const endDate = new Date();
+                    const startDate = new Date();
+                    startDate.setFullYear(endDate.getFullYear() - anos);
+
+                    // Buscar preços do Bitcoin via CoinGecko
+                    const btcPrices = await fetchBitcoinPrices(startDate, endDate);
+
+                    // Executar o código Python
+                    const output = await pyodide.runPythonAsync(
+                        pythonCode + `\nresult = simulacao_investimento(${aporte}, ${anos}, '''${JSON.stringify(btcPrices)}''')`
+                    );
                     resultDiv.textContent = output || 'Erro: Nenhum resultado retornado.';
                 } catch (err) {
                     resultDiv.textContent = `Erro: ${err.message}`;
