@@ -72,6 +72,10 @@
             font-family: monospace;
             display: none;
         }
+        .error {
+            color: red;
+            font-weight: bold;
+        }
     </style>
     <script src="https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js"></script>
 </head>
@@ -94,11 +98,17 @@
 
     <script>
         async function fetchBitcoinPrices(startDate, endDate) {
-            const apiKey = 'CG-bAYkDA449m3yzuaUF6e3Za7S'; // Substitua pela sua chave de API da CoinGecko
-            const url = `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart/range?vs_currency=usd&from=${Math.floor(startDate.getTime() / 1000)}&to=${Math.floor(endDate.getTime() / 1000)}&x_cg_api_key=${apiKey}`;
+            const apiKey = 'CG-ASKzLka6RLoFVaL4kSSnPBzt'; // Substitua pela sua NOVA chave Demo da CoinGecko
+            if (!apiKey || apiKey === '<SUA_CHAVE_API_AQUI>') {
+                throw new Error('Erro: Insira uma chave de API válida da CoinGecko. Acesse https://www.coingecko.com/en/api/pricing para criar uma conta gratuita.');
+            }
+            const url = `https://api.coingecko.com/api/v3/coins/bitcoin/market_chart/range?vs_currency=usd&from=${Math.floor(startDate.getTime() / 1000)}&to=${Math.floor(endDate.getTime() / 1000)}&x_cg_demo_api_key=${apiKey}`;
             const response = await fetch(url);
             if (!response.ok) {
-                throw new Error(`Erro na API CoinGecko: ${response.status} ${response.statusText}`);
+                if (response.status === 401) {
+                    throw new Error('Erro 401 Unauthorized: Chave de API inválida ou expirada. Gere uma nova no dashboard da CoinGecko.');
+                }
+                throw new Error(`Erro na API CoinGecko: ${response.status} ${response.statusText}. Verifique a chave de API e tente novamente.`);
             }
             const data = await response.json();
             return data.prices.map(([timestamp, price]) => ({
@@ -185,6 +195,7 @@ def simulacao_investimento(aporte_diario, anos, btc_prices_json):
                 event.preventDefault();
                 resultDiv.classList.remove('hidden');
                 resultDiv.textContent = 'Calculando...';
+                resultDiv.classList.remove('error');
 
                 try {
                     const aporte = parseFloat(document.getElementById('aporte').value);
@@ -203,6 +214,7 @@ def simulacao_investimento(aporte_diario, anos, btc_prices_json):
                     resultDiv.textContent = output || 'Erro: Nenhum resultado retornado.';
                 } catch (err) {
                     resultDiv.textContent = `Erro: ${err.message}`;
+                    resultDiv.classList.add('error');
                 }
             });
         }
