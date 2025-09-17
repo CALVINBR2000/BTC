@@ -4,48 +4,104 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Simulador de Investimento em Bitcoin</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js"></script>
     <style>
         body {
             background-color: #f3f4f6;
-            font-family: 'Arial', sans-serif;
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        .container {
+            max-width: 400px;
+            width: 100%;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            text-align: center;
+            font-size: 24px;
+            margin-bottom: 20px;
+            color: #333;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            font-size: 14px;
+            color: #555;
+            margin-bottom: 5px;
+        }
+        input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        input:focus {
+            outline: none;
+            border-color: #2563eb;
+            box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            background: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #1e40af;
         }
         #result {
+            margin-top: 20px;
+            background: #fff;
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
             white-space: pre-wrap;
             font-family: monospace;
-            background-color: white;
-            padding: 1rem;
-            border-radius: 0.5rem;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            display: none;
         }
     </style>
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js"></script>
 </head>
-<body class="min-h-screen flex items-center justify-center">
-    <div class="max-w-md w-full bg-white p-6 rounded-lg shadow-lg">
-        <h1 class="text-2xl font-bold text-center mb-6">Simulador de Investimento em Bitcoin</h1>
-        <form id="investment-form" class="space-y-4">
-            <div>
-                <label for="aporte" class="block text-sm font-medium text-gray-700">Aporte diário (R$):</label>
-                <input type="number" id="aporte" name="aporte" step="0.01" min="0.01" placeholder="Ex: 33.33" required
-                       class="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+<body>
+    <div class="container">
+        <h1>Simulador de Investimento em Bitcoin</h1>
+        <form id="investment-form">
+            <div class="form-group">
+                <label for="aporte">Aporte diário (R$):</label>
+                <input type="number" id="aporte" name="aporte" step="0.01" min="0.01" placeholder="Ex: 33.33" required>
             </div>
-            <div>
-                <label for="anos" class="block text-sm font-medium text-gray-700">Anos para simular:</label>
-                <input type="number" id="anos" name="anos" min="1" max="10" placeholder="Ex: 1, 2, 5, 10" required
-                       class="mt-1 block w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <div class="form-group">
+                <label for="anos">Anos para simular:</label>
+                <input type="number" id="anos" name="anos" min="1" max="10" placeholder="Ex: 1, 2, 5, 10" required>
             </div>
-            <button type="submit" class="w-full bg-blue-500 text-white p-2 rounded-md hover:bg-blue-600">Calcular</button>
+            <button type="submit">Calcular</button>
         </form>
-        <div id="result" class="mt-6 hidden"></div>
+        <div id="result"></div>
     </div>
 
     <script>
         async function main() {
             let pyodide = await loadPyodide();
-            await pyodide.loadPackage(['pandas', 'yfinance']);
+            await pyodide.loadPackage('pandas');
+            await pyodide.loadPackage('micropip');
+            await pyodide.runPythonAsync(`
+                import micropip
+                await micropip.install('yfinance')
+            `);
 
-            // Código Python a ser executado
             const pythonCode = `
 import yfinance as yf
 import pandas as pd
@@ -122,7 +178,6 @@ result = simulacao_investimento(float(js.document.getElementById('aporte').value
                                int(js.document.getElementById('anos').value))
 `;
 
-            // Configurar o formulário
             const form = document.getElementById('investment-form');
             const resultDiv = document.getElementById('result');
 
@@ -135,7 +190,6 @@ result = simulacao_investimento(float(js.document.getElementById('aporte').value
                     const aporte = document.getElementById('aporte').value;
                     const anos = document.getElementById('anos').value;
                     
-                    // Executar o código Python
                     const output = await pyodide.runPythonAsync(pythonCode);
                     resultDiv.textContent = output || 'Erro: Nenhum resultado retornado.';
                 } catch (err) {
